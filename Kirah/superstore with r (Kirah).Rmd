@@ -1,0 +1,493 @@
+---
+title: "Superstore with R"
+author: "Nurhanie Syakirah Rosnei"
+date: '2022-05-10'
+output: html_notebook
+---
+
+# Tableau Superstore Dataset
+
+With growing demands and cut-throat competitions in the market, a Superstore Giant is seeking your knowledge in understanding what works best for them. They would like to understand which products, regions, categories and customer segments they should target or avoid.
+
+They also want to have a Regression model to predict Sales or Profit.
+
+# Get the dataset
+
+Firstly, let's get the dataset from XLS file. In the XLS file, there are 3 sheets:
+
+-   Orders: List of transactions
+-   Returns: List of items returned
+-   People: List of sales person for West, East, Central and South
+
+Importing necessary libraries
+```{r}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(forcats)
+library(scales)
+```
+
+Import the excel file into a RStudio as a dataframe
+```{r}
+df_orders = read_xls('superstore.xls', sheet = 'Orders', col_names = TRUE)
+df_returns = read_xls('superstore.xls', sheet='Returns', col_names = TRUE)
+df_people = read_xls('superstore.xls', sheet='People', col_names = TRUE)
+```
+
+#EXAMINE THE DATASETS - (Orders)
+1. Shows the first 6 rows of the data frame
+
+```{r}
+head(df_orders)
+```
+
+2. Shows the dimensions of the data frame by row and column
+```{r}
+dim(df_orders)
+```
+
+3. Shows the structure of the data frame
+```{r}
+str(df_orders)
+```
+4. rovides summary statistics on the columns of the data frame
+```{r}
+summary(df_orders)
+```
+5. Shows the name of each column in the data frame
+```{r}
+colnames(df_orders)
+```
+6. Shows the last 6 rows of the data frame
+```{r}
+tail(df_orders)
+```
+
+7. Shows a spreadsheet-like display of the entire data frame
+```{r}
+View(df_orders)
+```
+
+
+#EXAMINE THE DATASETS - (Returns)
+Let's do the 7 basic examining steps for "Returns" dataframe
+```{r}
+head(df_returns)
+```
+
+```{r}
+dim(df_returns)
+```
+
+```{r}
+str(df_returns)
+```
+
+```{r}
+summary(df_returns)
+```
+
+```{r}
+colnames(df_returns)
+```
+
+```{r}
+tail(df_returns)
+```
+
+```{r}
+View(df_returns)
+```
+
+#EXAMINE THE DATASETS - (People)
+Let's do the 7 basic examining steps for "People" dataframe
+```{r}
+head(df_people)
+```
+
+```{r}
+dim(df_people)
+```
+
+```{r}
+str(df_people)
+```
+```{r}
+summary(df_people)
+```
+
+```{r}
+colnames(df_people)
+```
+
+```{r}
+tail(df_people)
+```
+
+```{r}
+View(df_people)
+```
+
+
+# Validate the data - "Order" data
+
+We are focusing on statistical values in Sales, Quantity, Discount and Profit column. From there, we can see that:
+
+-   Sales range from USD 0.44 to USD 22,638.48 per transaction; the average sales closed is USD 229.86 while a typical sale closed is USD 54.49
+-   Quantity sold range from 1 to 14 items per transaction; typically each transaction sold around 3 to 4 items.
+-   Discount range from USD 0 to USD 0.80, meaning this shop only give minimal discounts to customers.
+-   Profit range from a loss USD -6,599.98 to a profit of USD 8,399.98. The average profit per transaction is USD 28.66 but we know most of the profit is lower than that due to median lower than mean.
+-   On top of that, we also noticed that R is not able to identify which one is datetime format as they are parsed as characters.
+
+Next, we check for missing values:
+
+```{r}
+#apply(is.na(df_orders), 2, sum)
+sum(is.na(df_orders))
+```
+There are no missing values for `df_orders`. 
+
+Next, we check on the unique values of each relevant features.
+```{r, echo=FALSE}
+cat(length(unique(df_order$Segment)), 'unique values in Segment column: \n', unique(df_order$Segment), '\n\n')
+cat(length(unique(df_order$`Ship Mode`)), 'unique values in Ship Mode column: \n', unique(df_order$`Ship Mode`), '\n\n')
+cat(length(unique(df_order$Country)), 'unique values in Country column: \n', unique(df_order$Country), '\n\n')
+cat(length(unique(df_order$City)), 'unique values in City column', '\n\n')
+cat(length(unique(df_order$State)), 'unique values in State column: \n', unique(df_order$State), '\n\n')
+cat(length(unique(df_order$Region)), 'unique values in Region column: \n', unique(df_order$Region), '\n\n')
+cat(length(unique(df_order$Category)), 'unique values in Category column: \n', unique(df_order$Category), '\n\n')
+cat(length(unique(df_order$`Sub-Category`)), 'unique values in Sub-Category column: \n', unique(df_order$`Sub-Category`), '\n\n')
+```
+Let's do the same method as above for Returns and People dataframe
+
+
+# Validate the data - "Returns" data
+
+Missing values of `df_return`:
+
+```{r}
+#apply(is.na(df_returns), 2, sum)
+sum(is.na(df_returns))
+```
+
+No missing values too in `df_returns`.
+
+Unique values of `df_returns`:
+
+```{r}
+cat(length(unique(df_returns$Returned)), 'unique values in Returned: \n', unique(df_returns$Returned))
+```
+
+```{r}
+#apply(is.na(df_people), 2, sum)
+sum(is.na(df_people))
+```
+No missing values found in `df_people`.
+Unique values of `df_people`:
+```{r}
+cat(length(unique(df_people$Person)), 'unique values in Person column: \n', unique(df_people$Person),'\n\n')
+cat(length(unique(df_people$Region)), 'unique values in Region column: \n', unique(df_people$Region))
+```
+
+# Data Wrangling - Merging "Return" and "People" dataframe into "Order" dataframe
+
+Next, merging the `df_returns$Returned` and `df_people$Person` into `df_orders$Returned` and `df_orders$Person` respectively, using full join to retain all values and rows.
+
+```{r}
+df = dplyr::full_join(df_orders, df_returns, by="Order ID")
+
+df$`Order Date` = as.Date.character(df$`Order Date`, format="%Y-%m-%d")
+df$`Ship Date` = as.Date(df$`Ship Date`, format="%Y-%m-%d")
+df
+```
+```{r}
+View(df)
+```
+
+`df` will be the main dataset that wil be the references for our analysis and EDA part, transformation and prediction.
+
+# Exploratory Data Analysis
+
+In this section, we will drill deeper into the data for more insights. But first, we need to know what problems we want to solve and what questions to ask. Taking the POV of the owner of the Superstore:
+
+-   Overview
+    -   What is the monthly sales and profit since inception?
+-   Overview - Increase Revenue
+    -   Which product category and subcategory has the highest sales, with and without discount?
+    -   Which customer segment that contribute to the highest sales?
+    -   Which region, state and city contribute to the highest sales and profit?
+-   Overview - Reduce Loss
+    -   Which product category and subcategory that has the highest returned item?
+-   Prediction
+    -   Regression: What is the overall sales and profit in the next month?
+    -   Classification: Based on order features, what is the most likely ship mode for that particular order?
+
+#Overview of monthly sales and profit
+
+```{r}
+
+df_time<-ts(df_time[,-1],frequency =12,start=c(2014,03),end=c(2017,12))
+head(df_time)
+```
+```{r}
+df<-df%>%
+  mutate(month = month(`Order Date`, label = T))
+```
+
+
+```{r}
+df%>%
+  ggplot(aes(month,log(Profit)))+
+  geom_boxplot(fill='LightBlue')+
+  theme_bw()+
+  labs(title='Profit vs Month',
+       x='Month')
+```
+#We have now witnessed from the below scatter plot that the Sales to Profit ratio is same in every category
+```{r}
+df%>%
+  ggplot(aes(Sales, Profit))+
+  geom_point(alpha=1/5)+
+  theme_bw()+
+  labs(title = 'Sales vs Profits')
+```
+
+```{r}
+df%>%
+  ggplot(aes(month,log(Sales)))+
+  geom_boxplot(fill='LightBlue')+
+  theme_bw()+
+  labs(title='Sales vs Month',
+       x='Month')
+```
+
+## Overview - Increase Revenue
+
+#Which product category and subcategory with highest sales, with and without discount?
+
+```{r}
+df_category_sales <- df %>%
+  select(Category, Sales) %>%
+  group_by(Category) %>%
+  summarise(Sales = sum(Sales))
+```
+
+```{r}
+df_category_sales <- df_category_sales %>%
+  mutate(Percentage = percent(df_category_sales$Sales/sum(df_category_sales$Sales)))
+```
+
+Pie Chart for Sales by Category Breakdown
+
+```{r}
+ggplot(df_category_sales, aes(x = "", y = Sales, fill = Category)) +
+  ggtitle("Sales by Category Piechart") +
+  geom_col() +
+   geom_label(aes(label = Percentage),
+             position = position_stack(vjust = 0.5),
+             show.legend = FALSE) +
+  coord_polar(theta = "y")
+```
+
+Bar Chart for Sales by Category Breakdown
+
+```{r}
+bar_category_sales <- ggplot(data=df_category_sales, aes(x=Category, y=Sales, fill=Category)) +
+  coord_cartesian(ylim = c(700000, 850000))+
+  geom_bar(stat="identity")+
+  geom_text(aes(label=Percentage), vjust=1.6, color="white", size=3.5)+
+  theme_minimal()
+bar_category_sales + scale_fill_manual(values=c("#999999", "#E69F00", "#56B4E9"))
+bar_category_sales
+```
+
+#Which customer segment that contribute to the highest sales?
+
+```{r}
+df_segment_sales <- df %>%
+  select(Segment, Sales) %>%
+  group_by(Segment) %>%
+  summarise(Sales = sum(Sales))
+```
+
+```{r}
+df_segment_sales <- df_segment_sales %>%
+  mutate(Percentage = percent(df_segment_sales$Sales/sum(df_category_sales$Sales)))
+```
+
+Bar Chart for Customer Segment Sales Contribution
+```{r}
+ggplot(df_segment_sales, aes(x = "", y = Sales, fill = Segment)) +
+  ggtitle("Customer Segment Sales Contribution") +
+  geom_col() +
+   geom_label(aes(label = Percentage ),
+             position = position_stack(vjust = 0.5),
+             show.legend = FALSE) +
+  coord_polar(theta = "y")
+```
+
+```{r}
+df%>%
+  group_by(`Sub-Category`, Segment)%>%
+  summarise(n=sum(Sales))%>%
+  ggplot(aes(Segment, `Sub-Category`, fill=n))+
+  scale_fill_distiller(palette = "YlGnBu", direction = 1)+
+  geom_tile(color='white')+
+  geom_text(aes(label=paste(round(n,0),'$')), color = 'white', size=3)+
+  theme_bw()+
+  labs(title='Sales: Segment vs. Sub-Category',
+       fill='Sales')
+```
+
+```{r}
+df%>%
+  group_by(Segment,`Sub-Category`)%>%
+  summarise(n=mean(Profit))%>%
+  ggplot(aes(Segment, `Sub-Category`, fill=log(n)))+
+  scale_fill_distiller(palette = "YlGnBu", direction = 1)+
+  geom_tile(color='white')+
+  geom_text(aes(label=paste(round(n,0),'$')), color = 'white', size=3)+
+  theme_bw()+
+  labs(title='Profit: Segment vs. Sub-Category',
+       fill='Average Profit(log)')
+```
+#Which region, state and city contribute to the highest sales and profit?
+
+Region - Sales
+```{r}
+df_region_sales <- df %>%
+  select(Region, Sales) %>%
+  group_by(Region) %>%
+  summarise(Sales = sum(Sales))
+```
+
+Input percentage column into the table
+```{r}
+df_region_sales <- df_region_sales %>%
+    mutate(Percentage = percent(df_region_sales$Sales/sum(df_region_sales$Sales)))
+```
+
+Bar Chart for Region by Sales
+```{r}
+bar_region_sales <- ggplot(data=df_region_sales, aes(x=Region, y=Sales, fill=Region)) +
+  coord_cartesian(ylim = c(300000, 800000))+
+  ggtitle("Region by Sales Breakdown") +
+  geom_bar(stat="identity")+
+  geom_text(aes(label=Percentage), vjust=1.6, color="white", size=3.5)+
+  theme_minimal()
+bar_region_sales + scale_fill_manual(values=c("#999999", "#E69F00", "#56B4E9","#f5ad42"))
+bar_region_sales
+```
+
+```{r}
+bar_region_sales2 <- ggplot(df_region_sales,aes(reorder(Region, Sales), Sales, fill=Region)) +
+  geom_col(width = 0.5, alpha = 0.5)+
+  geom_point(size=10,color='black',alpha=0.07)+
+  scale_x_discrete(labels=df_region_sales[order(df_region_sales$Sales),]$Region) +
+  theme_classic()+
+  coord_flip()+
+  geom_text(aes(Region,Sales,label=Sales))+
+  labs(x="Region", y="Total sales by region", title="Analysis of Sales based on region")+
+  theme(axis.text=element_text(size=10, face='bold'), title=element_text(size=16))+
+  theme(legend.title =element_text(size=10),legend.text=element_text(size=10),legend.position='bottom')
+
+bar_region_sales2
+
+```
+
+State - Sales
+```{r}
+df_state_sales <- df %>%
+  select(State, Sales) %>%
+  group_by(State) %>%
+  summarise(Sales = sum(Sales))
+
+df_state_sales <- df_state_sales[order(-df_state_sales$Sales),]
+```
+
+```{r}
+df_state_sales <- df_state_sales %>%
+  mutate(Percentage = percent(df_state_sales$Sales/sum(df_state_sales$Sales),accuracy = 0.01))
+```
+
+Horizontal Bar Chart for Top 10 Regions by Sales
+```{r}
+bar_state_sales <- ggplot(data=df_state_sales[1:10,], aes(x=State, y=Sales, fill=State)) +
+  #coord_cartesian(ylim = c(300000, 800000))+
+  geom_bar(stat="identity")+
+  ggtitle("Top 10 Regions by Sales Breakdown") +
+  geom_text(aes(label=Percentage), hjust=1.3, vjust=0.4, color="white", size=3)+
+  theme_minimal()+
+  coord_flip()
+#bar_region_sales + scale_fill_manual(values=c("#999999", "#E69F00", "#56B4E9","#f5ad42"))
+bar_state_sales
+```
+
+```{r}
+#bar_state_sales2 <- ggplot
+
+colnames(df_state_sales) = c('region','value')
+df_state_sales$region=tolower(df_state_sales$region)
+```
+
+```{r}
+library(choroplethr)
+library(choroplethrMaps)
+
+state_choropleth(df_state_sales,title="Geographic analysis of Sales by States",legend="Sales in USD")
+```
+From the graphs above, we can observe that:
+1. State of California recorded the highest Sales
+2. New York has the second highest Sales
+3. North Dakota records the least Sales
+4. We can see that the company's sales are most concentrated on the East and West Coast of America
+
+City - Sales
+```{r}
+df_city_sales <- df %>%
+  select(City, Sales) %>%
+  group_by(City) %>%
+  summarise(Sales = sum(Sales))
+
+df_city_sales <- df_city_sales[order(-df_city_sales$Sales),]
+```
+
+```{r}
+df_city_sales <- df_city_sales %>%
+  mutate(Percentage = percent(df_city_sales$Sales/sum(df_city_sales$Sales),accuracy = 0.01))
+```
+
+Horizontal Bar Chart for Top 10 City by Sales
+
+```{r}
+bar_city_sales <- ggplot(data=df_city_sales[1:10,], aes(x=City, y=Sales, fill=City)) +
+  geom_bar(stat="identity")+
+  ggtitle("Sales by City Breakdown") +
+  geom_text(aes(label=Percentage), hjust=1.3, vjust=0.4, color="white", size=3)+
+  theme_minimal()+
+  coord_flip()
+
+bar_city_sales
+```
+
+#Overview - Reduce Loss
+#Which product category and subcategory that has the highest returned item?
+```{r}
+library(wordcloud)
+library(RColorBrewer)
+library(wordcloud2)
+library(tm)
+library(webshot)
+webshot::install_phantomjs()
+
+my_graph <- wordcloud2(demoFreq, size=1.5)
+```
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
